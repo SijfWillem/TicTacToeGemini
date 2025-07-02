@@ -47,13 +47,40 @@ const Scoreboard = ({ players, scores }) => (
 );
 
 // PlayerSetup component: Form for entering name and uploading a symbol or choosing from dropdown
-const PlayerSetup = ({ gameId, playerId, onSetupComplete }) => {
+const PlayerSetup = ({ gameId, playerId, onSetupComplete, error }) => {
   const [name, setName] = useState('');
   const [symbol, setSymbol] = useState(null);
-  const [selectionType, setSelectionType] = useState('image'); // 'image' or 'dropdown'
+  const [selectionType, setSelectionType] = useState('image'); // 'image', 'dropdown', or 'webcam'
   const fileInputRef = useRef(null);
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const streamRef = useRef(null);
 
   const defaultSymbols = ['X', 'O', '▲', '■', '●', '♦'];
+
+  useEffect(() => {
+    if (selectionType === 'webcam') {
+      navigator.mediaDevices.getUserMedia({ video: true })
+        .then(stream => {
+          videoRef.current.srcObject = stream;
+          streamRef.current = stream;
+        })
+        .catch(err => {
+          console.error("Error accessing webcam:", err);
+          alert("Could not access webcam. Please ensure you have a webcam and have granted permission.");
+          setSelectionType('image'); // Fallback to image upload
+        });
+    } else {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
+    }
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [selectionType]);
 
   const handleImageUpload = (event) => {
     const file = event.target.files[0];
@@ -66,6 +93,20 @@ const PlayerSetup = ({ gameId, playerId, onSetupComplete }) => {
     } else {
       alert('Please upload a valid PNG or JPG image.');
     }
+  };
+
+  const handleCapture = () => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    const context = canvas.getContext('2d');
+
+    // Set canvas dimensions to match video stream
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const imageDataURL = canvas.toDataURL('image/png');
+    setSymbol(imageDataURL);
   };
 
   const handleSubmit = () => {
@@ -85,6 +126,7 @@ const PlayerSetup = ({ gameId, playerId, onSetupComplete }) => {
         value={name}
         onChange={(e) => setName(e.target.value)}
       />
+      {error && <p className="error">{error}</p>}
       <div className="symbol-selection-toggle">
         <label>
           <input
@@ -104,6 +146,15 @@ const PlayerSetup = ({ gameId, playerId, onSetupComplete }) => {
           />
           Choose from List
         </label>
+        <label>
+          <input
+            type="radio"
+            value="webcam"
+            checked={selectionType === 'webcam'}
+            onChange={() => setSelectionType('webcam')}
+          />
+          Use Webcam
+        </label>
       </div>
 
       {selectionType === 'image' ? (
@@ -116,13 +167,20 @@ const PlayerSetup = ({ gameId, playerId, onSetupComplete }) => {
           />
           {symbol && <img src={symbol} alt="Selected Symbol" className="symbol-preview" />}
         </React.Fragment>
-      ) : (
+      ) : selectionType === 'dropdown' ? (
         <select onChange={(e) => setSymbol(e.target.value)} value={symbol || ''}>
           <option value="" disabled>Select a symbol</option>
           {defaultSymbols.map(s => (
             <option key={s} value={s}>{s}</option>
           ))}
         </select>
+      ) : (
+        <div className="webcam-capture">
+          <video ref={videoRef} autoPlay playsInline className="webcam-video"></video>
+          <button onClick={handleCapture}>Capture Photo</button>
+          <canvas ref={canvasRef} style={{ display: 'none' }}></canvas>
+          {symbol && <img src={symbol} alt="Captured Symbol" className="symbol-preview" />}
+        </div>
       )}
 
       <button onClick={handleSubmit}>Join Game</button>
@@ -210,6 +268,10 @@ const Game = () => {
             setMemeUrl(payload.memeUrl);
             setShowMeme(true);
             console.log('UPDATE_STATE: memeUrl received, showMeme set to true', payload.memeUrl);
+            setTimeout(() => {
+              setShowMeme(false);
+              setMemeUrl(null);
+            }, 5000); // Show meme for 5 seconds
           } else {
             setShowMeme(false); // Reset meme visibility if no memeUrl
             setMemeUrl(null);
@@ -222,6 +284,11 @@ const Game = () => {
         case 'ERROR':
           setError(payload.message);
           console.error('ERROR from server:', payload.message);
+          // If the error is about symbol taken, clear the symbol so user can re-select
+          if (payload.message.includes('Symbol already taken')) {
+            // No need to clear symbol here, as PlayerSetup handles it.
+            // The error message itself will guide the user.
+          }
           break;
         default:
           break;
@@ -244,6 +311,7 @@ const Game = () => {
   };
 
   const handlePlayerSetup = (playerInfo) => {
+    setError(''); // Clear previous errors
     ws.send(JSON.stringify({ type: 'SET_PLAYER_INFO', payload: playerInfo }));
   };
 
@@ -266,7 +334,7 @@ const Game = () => {
 
   if (needsSetup) {
     console.log('Returning PlayerSetup component');
-    return <PlayerSetup gameId={gameId} playerId={playerId} onSetupComplete={handlePlayerSetup} />;
+    return <PlayerSetup gameId={gameId} playerId={playerId} onSetupComplete={handlePlayerSetup} error={error} />;
   }
 
   if (!gameState) {

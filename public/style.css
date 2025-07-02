@@ -1,4 +1,3 @@
-
 /* style.css */
 
 /**
@@ -93,6 +92,19 @@ body {
     border-radius: 8px;
     margin-top: 10px;
     width: 250px;
+}
+
+.webcam-capture {
+    margin-top: 20px;
+}
+
+.webcam-video {
+    width: 320px;
+    height: 240px;
+    background-color: #000;
+    border: 2px solid #ffab40;
+    border-radius: 8px;
+    margin-bottom: 10px;
 }
 
 /* Game Layout */

@@ -104,10 +104,15 @@ wss.on('connection', (ws) => {
       case 'SET_PLAYER_INFO': {
         const { gameId, playerId, name, symbol } = payload;
         game = games[gameId];
-        if (game && !game.players.find(p => p.id === playerId)) {
-          game.players.push({ id: playerId, name, symbol });
-          game.scores[playerId] = 0;
-          broadcast(gameId, { type: 'UPDATE_STATE', payload: { gameState: game } });
+        if (game) {
+          const isSymbolTaken = game.players.some(p => p.symbol === symbol);
+          if (isSymbolTaken) {
+            ws.send(JSON.stringify({ type: 'ERROR', payload: { message: 'Symbol already taken. Please choose another.' } }));
+          } else if (!game.players.find(p => p.id === playerId)) {
+            game.players.push({ id: playerId, name, symbol });
+            game.scores[playerId] = 0;
+            broadcast(gameId, { type: 'UPDATE_STATE', payload: { gameState: game } });
+          }
         }
         break;
       }
