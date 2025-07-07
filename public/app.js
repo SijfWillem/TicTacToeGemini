@@ -1,4 +1,3 @@
-
 // app.js
 
 /**
@@ -11,14 +10,10 @@ const { useState, useEffect, useRef } = React;
 // WebSocket connection setup
 const ws = new WebSocket(`ws://${window.location.host}`);
 
-// Square component: Renders a square that can display an image symbol or text
+// Square component: Renders a square that can display an image symbol
 const Square = ({ value, onClick }) => (
   <button className="square" onClick={onClick}>
-    {value && value.startsWith('data:image') ? (
-      <img src={value} alt="player symbol" />
-    ) : (
-      value
-    )}
+    {value && <img src={value} alt="player symbol" />}
   </button>
 );
 
@@ -46,41 +41,11 @@ const Scoreboard = ({ players, scores }) => (
   </div>
 );
 
-// PlayerSetup component: Form for entering name and uploading a symbol or choosing from dropdown
-const PlayerSetup = ({ gameId, playerId, onSetupComplete, error }) => {
+// PlayerSetup component: Form for entering name and uploading a symbol
+const PlayerSetup = ({ gameId, playerId, onSetupComplete }) => {
   const [name, setName] = useState('');
   const [symbol, setSymbol] = useState(null);
-  const [selectionType, setSelectionType] = useState('image'); // 'image', 'dropdown', or 'webcam'
   const fileInputRef = useRef(null);
-  const videoRef = useRef(null);
-  const canvasRef = useRef(null);
-  const streamRef = useRef(null);
-
-  const defaultSymbols = ['X', 'O', '▲', '■', '●', '♦'];
-
-  useEffect(() => {
-    if (selectionType === 'webcam') {
-      navigator.mediaDevices.getUserMedia({ video: true })
-        .then(stream => {
-          videoRef.current.srcObject = stream;
-          streamRef.current = stream;
-        })
-        .catch(err => {
-          console.error("Error accessing webcam:", err);
-          alert("Could not access webcam. Please ensure you have a webcam and have granted permission.");
-          setSelectionType('image'); // Fallback to image upload
-        });
-    } else {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-      }
-    }
-    return () => {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-      }
-    };
-  }, [selectionType]);
 
   const handleImageUpload = (event) => {
     const file = event.target.files[0];
@@ -95,25 +60,11 @@ const PlayerSetup = ({ gameId, playerId, onSetupComplete, error }) => {
     }
   };
 
-  const handleCapture = () => {
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    const context = canvas.getContext('2d');
-
-    // Set canvas dimensions to match video stream
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const imageDataURL = canvas.toDataURL('image/png');
-    setSymbol(imageDataURL);
-  };
-
   const handleSubmit = () => {
     if (name && symbol) {
       onSetupComplete({ gameId, playerId, name, symbol });
     } else {
-      alert('Please enter your name and select a symbol.');
+      alert('Please enter your name and upload a symbol.');
     }
   };
 
@@ -126,75 +77,25 @@ const PlayerSetup = ({ gameId, playerId, onSetupComplete, error }) => {
         value={name}
         onChange={(e) => setName(e.target.value)}
       />
-      {error && <p className="error">{error}</p>}
-      <div className="symbol-selection-toggle">
-        <label>
-          <input
-            type="radio"
-            value="image"
-            checked={selectionType === 'image'}
-            onChange={() => setSelectionType('image')}
-          />
-          Upload Image
-        </label>
-        <label>
-          <input
-            type="radio"
-            value="dropdown"
-            checked={selectionType === 'dropdown'}
-            onChange={() => setSelectionType('dropdown')}
-          />
-          Choose from List
-        </label>
-        <label>
-          <input
-            type="radio"
-            value="webcam"
-            checked={selectionType === 'webcam'}
-            onChange={() => setSelectionType('webcam')}
-          />
-          Use Webcam
-        </label>
-      </div>
-
-      {selectionType === 'image' ? (
-        <React.Fragment>
-          <input
-            type="file"
-            accept="image/png,image/jpeg"
-            ref={fileInputRef}
-            onChange={handleImageUpload}
-          />
-          {symbol && <img src={symbol} alt="Selected Symbol" className="symbol-preview" />}
-        </React.Fragment>
-      ) : selectionType === 'dropdown' ? (
-        <select onChange={(e) => setSymbol(e.target.value)} value={symbol || ''}>
-          <option value="" disabled>Select a symbol</option>
-          {defaultSymbols.map(s => (
-            <option key={s} value={s}>{s}</option>
-          ))}
-        </select>
-      ) : (
-        <div className="webcam-capture">
-          <video ref={videoRef} autoPlay playsInline className="webcam-video"></video>
-          <button onClick={handleCapture}>Capture Photo</button>
-          <canvas ref={canvasRef} style={{ display: 'none' }}></canvas>
-          {symbol && <img src={symbol} alt="Captured Symbol" className="symbol-preview" />}
-        </div>
-      )}
-
+      <input
+        type="file"
+        accept="image/png"
+        ref={fileInputRef}
+        onChange={handleImageUpload}
+      />
+      {symbol && <img src={symbol} alt="Selected Symbol" className="symbol-preview" />}
       <button onClick={handleSubmit}>Join Game</button>
     </div>
   );
 };
 
-// MemeOverlay component: Displays a meme when a specific player wins
-const MemeOverlay = ({ memeUrl, onclose }) => {
-  if (!memeUrl) return null;
+  // MemeOverlay component: Displays a meme when a specific player wins
+const MemeOverlay = ({ winnerName, onclose }) => {
+  if (winnerName.toLowerCase() !== 'bram') return null;
 
   return (
     <div className="meme-overlay" onClick={onclose}>
-      <img src={memeUrl} alt="Lord of the Rings Meme" />
+      <img src="https://i.imgflip.com/1j2oed.jpg" alt="Lord of the Rings Meme" />
       <p>One does not simply walk into Mordor... but Bram just won Tic-Tac-Toe!</p>
     </div>
   );
@@ -209,12 +110,9 @@ const Game = () => {
   const [error, setError] = useState('');
   const [needsSetup, setNeedsSetup] = useState(false);
   const [showMeme, setShowMeme] = useState(false);
-  const [memeUrl, setMemeUrl] = useState(null);
 
   useEffect(() => {
-    console.log('Game component mounted or gameState/winner changed');
     if (gameState && gameState.winner) {
-      console.log('Winner detected, triggering confetti and checking for Bram');
       // A more spectacular confetti celebration
       const duration = 3 * 1000;
       const animationEnd = Date.now() + duration;
@@ -236,15 +134,17 @@ const Game = () => {
         confetti(Object.assign({}, defaults, { particleCount, origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 } }));
         confetti(Object.assign({}, defaults, { particleCount, origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 } }));
       }, 250);
+
+      if (gameState.winner.name.toLowerCase() === 'bram') {
+        setShowMeme(true);
+      }
     }
-  }, [gameState && gameState.winner]);
+  }, [gameState ? gameState.winner : null]);
 
   useEffect(() => {
-    console.log('WebSocket effect running');
     ws.onmessage = (event) => {
       const message = JSON.parse(event.data);
       const { type, payload } = message;
-      console.log('Received WebSocket message:', type, payload);
 
       switch (type) {
         case 'GAME_CREATED':
@@ -252,7 +152,6 @@ const Game = () => {
           setPlayerId(payload.playerId);
           setNeedsSetup(true);
           setError('');
-          console.log('GAME_CREATED: needsSetup set to true');
           break;
         case 'JOIN_ACCEPTED':
           setGameId(payload.gameId);
@@ -260,35 +159,14 @@ const Game = () => {
           setGameState(payload.gameState);
           setNeedsSetup(true);
           setError('');
-          console.log('JOIN_ACCEPTED: needsSetup set to true');
           break;
         case 'UPDATE_STATE':
           setGameState(payload.gameState);
-          if (payload.memeUrl) {
-            setMemeUrl(payload.memeUrl);
-            setShowMeme(true);
-            console.log('UPDATE_STATE: memeUrl received, showMeme set to true', payload.memeUrl);
-            setTimeout(() => {
-              setShowMeme(false);
-              setMemeUrl(null);
-            }, 5000); // Show meme for 5 seconds
-          } else {
-            setShowMeme(false); // Reset meme visibility if no memeUrl
-            setMemeUrl(null);
-            console.log('UPDATE_STATE: no memeUrl, showMeme set to false');
-          }
           setNeedsSetup(false);
           setError('');
-          console.log('UPDATE_STATE: needsSetup set to false');
           break;
         case 'ERROR':
           setError(payload.message);
-          console.error('ERROR from server:', payload.message);
-          // If the error is about symbol taken, clear the symbol so user can re-select
-          if (payload.message.includes('Symbol already taken')) {
-            // No need to clear symbol here, as PlayerSetup handles it.
-            // The error message itself will guide the user.
-          }
           break;
         default:
           break;
@@ -301,8 +179,6 @@ const Game = () => {
     return () => { ws.onmessage = null; };
   }, []);
 
-  console.log('Rendering Game component. needsSetup:', needsSetup, 'gameState:', gameState, 'error:', error);
-
   const createGame = () => ws.send(JSON.stringify({ type: 'CREATE_GAME' }));
   const joinGame = () => {
     if (inputGameId) {
@@ -311,7 +187,6 @@ const Game = () => {
   };
 
   const handlePlayerSetup = (playerInfo) => {
-    setError(''); // Clear previous errors
     ws.send(JSON.stringify({ type: 'SET_PLAYER_INFO', payload: playerInfo }));
   };
 
@@ -321,24 +196,14 @@ const Game = () => {
     }
   };
 
-  const nextRound = () => {
-    setShowMeme(false); // Hide meme on next round
-    setMemeUrl(null);
-    ws.send(JSON.stringify({ type: 'NEXT_ROUND', payload: { gameId } }));
-  };
-  const resetMatch = () => {
-    setShowMeme(false); // Hide meme on reset match
-    setMemeUrl(null);
-    ws.send(JSON.stringify({ type: 'RESET_MATCH', payload: { gameId } }));
-  };
+  const nextRound = () => ws.send(JSON.stringify({ type: 'NEXT_ROUND', payload: { gameId } }));
+  const resetMatch = () => ws.send(JSON.stringify({ type: 'RESET_MATCH', payload: { gameId } }));
 
   if (needsSetup) {
-    console.log('Returning PlayerSetup component');
-    return <PlayerSetup gameId={gameId} playerId={playerId} onSetupComplete={handlePlayerSetup} error={error} />;
+    return <PlayerSetup gameId={gameId} playerId={playerId} onSetupComplete={handlePlayerSetup} />;
   }
 
   if (!gameState) {
-    console.log('Returning Lobby component');
     return (
       <div className="lobby">
         <h1>Tic-Tac-Toe</h1>
@@ -370,10 +235,8 @@ const Game = () => {
     status = `Next player: ${currentPlayer.name}`;
   }
 
-  console.log('Returning Game UI');
   return (
     <div className="game-container">
-      {showMeme && <MemeOverlay memeUrl={memeUrl} onclose={() => { setShowMeme(false); setMemeUrl(null); }} />}
       <div className="game-header">
         <h1>Game ID: {gameId}</h1>
         {you && <p className="your-name">Welcome, {you.name}</p>}
@@ -389,10 +252,11 @@ const Game = () => {
         </div>
         <Scoreboard players={players} scores={scores} />
       </div>
+      {showMeme && <MemeOverlay winnerName={winner.name} onclose={() => setShowMeme(false)} />}
       {error && <p className="error">{error}</p>}
     </div>
   );
 };
 
 // Render the Game component to the DOM
-ReactDOM.render(<Game />, document.getElementById('root'));
+ReactDOM.render(<Game />, document.getElementById('root'))
