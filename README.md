@@ -1,6 +1,6 @@
 # Tic-Tac-Toe Game
 
-This is a real-time, multi-player Tic-Tac-Toe game with custom player symbols, score tracking, and a fun Lord of the Rings meme Easter egg for a specific winner!
+This is a real-time, multi-player Tic-Tac-Toe game with custom player symbols and score tracking!
 
 ## Features
 
